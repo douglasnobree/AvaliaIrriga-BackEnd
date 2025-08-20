@@ -1,17 +1,299 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
 model User {
-  id       Int    @id @default(autoincrement())
-  email    String @unique
-  password String
+  id            String       @id
+  name          String
+  email         String       @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+  role          UserRole     @default(AVALIADOR)
+  sessions      Session[]
+  accounts      Account[]
+  members       Member[]
+  invitations   Invitation[]
+
+  propriedadesProprietario Propriedade[] @relation("ProprietarioPropriedade")
+  propriedadesAvaliador    Propriedade[] @relation("AvaliadoresPropriedade")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  activeOrganizationId String?
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
+
+model Organization {
+  id          String       @id
+  name        String
+  slug        String?      @unique
+  logo        String?
+  createdAt   DateTime
+  metadata    String?
+  members     Member[]
+  invitations Invitation[]
+
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String
+  createdAt      DateTime
+
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String?
+  status         String
+  expiresAt      DateTime
+  inviterId      String
+  user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@map("invitation")
+}
+
+/**
+ * -------------------------
+ * PARTE AGRÍCOLA
+ * -------------------------
+ */
+
+model Propriedade {
+  nome             String             @id @unique
+  proprietarioId   String
+  proprietario     User               @relation("ProprietarioPropriedade", fields: [proprietarioId], references: [id], onDelete: Cascade)
+  telefone         String
+  email            String
+  municipio        String
+  estado           String
+  latitude         Float
+  longitude        Float
+  area_total       Float
+  area_irrigada    Float
+  observacoes      String
+  avaliadores      User[]             @relation("AvaliadoresPropriedade")
+  Unidade_avaliada Unidade_avaliada[]
+  Convite          Convite[]
+}
+
+model Unidade_avaliada {
+  id             String      @id @default(uuid())
+  indentificacao String
+  area_ha        Float
+  propriedade_id String
+  avaliacoes     Avaliacao[]
+  propiedade     Propriedade @relation(fields: [propriedade_id], references: [nome], onDelete: Cascade)
+}
+
+model Avaliacao {
+  id               String             @id @default(uuid())
+  data             DateTime           @default(now())
+  area_irrigada    Float
+  volume_agua      Float
+  tempo_irrigacao  Float
+  cud              Float
+  cuc              Float
+  offline_status   Boolean
+  avaliador_id     String
+  unidade_type     UnitModel
+  unidade_id       String
+  setor_id         String?
+  pivo_id          String?
+  pivo             Pivo_Central?      @relation(fields: [pivo_id], references: [id])
+  setor            Setor_Hidraulico?  @relation(fields: [setor_id], references: [id])
+  unidade          Unidade_avaliada   @relation(fields: [unidade_id], references: [id])
+  Comentario       Comentario[]
+  Ponto_localizada Ponto_localizada[]
+  Ponto_pivo       Ponto_pivo[]
+}
+
+model Comentario {
+  id           String    @id @default(uuid())
+  comentario   String
+  avaliacao_id String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  avaliacao    Avaliacao @relation(fields: [avaliacao_id], references: [id], onDelete: Cascade)
+  Foto         Foto[]
+}
+
+model Foto {
+  id            String     @id @default(uuid())
+  url           String
+  descricao     String
+  comentario_id String
+  comentario    Comentario @relation(fields: [comentario_id], references: [id], onDelete: Cascade)
+}
+
+model Ponto_localizada {
+  id           String    @id @default(uuid())
+  eixo_x       Float
+  eixo_y       Float
+  volume_ml    Float
+  tempo_seg    Int
+  vazao_l_h    Float
+  avaliacao_id String
+  avaliacao    Avaliacao @relation(fields: [avaliacao_id], references: [id], onDelete: Cascade)
+}
+
+model Ponto_pivo {
+  id               String    @id @default(uuid())
+  sequencia        Int
+  distancia        Float
+  diametro_coletor Float
+  volume_ml        Float
+  tempo_seg        Int
+  vazao_l_h        Float
+  avaliacao_id     String
+  avaliacao        Avaliacao @relation(fields: [avaliacao_id], references: [id], onDelete: Cascade)
+}
+
+model Setor_Hidraulico {
+  id                     String      @id @default(uuid())
+  fabricante             String
+  modelo                 String
+  vazao_nominal          Float
+  pressao_trabalho       Float
+  pressao_recomendada    Float
+  dist_emissores         Float
+  dist_laterais          Float
+  filtro_tipo            String
+  malha_filtro           String
+  pressao_entrada        Float
+  valvula_tipo           String
+  energia_tipo           String
+  condicoes_gerais       String
+  num_emissores          Int
+  freq_manutencao        String
+  data_ultima_manutencao DateTime
+  emissor_type           EmissorType
+  avaliacoes             Avaliacao[]
+}
+
+model Pivo_Central {
+  id                     String      @id @default(uuid())
+  num_torres             Int
+  comprimento            Float
+  fabricante             String
+  modelo                 String
+  emissor_type           EmissorType
+  energia_tipo           String
+  potencia_motor         Float
+  vazao_operacao         Float
+  controle_tipo          String
+  fertirrigacao          Boolean
+  fonte_hidrica          String
+  tempo_funcionamento    Float
+  velocidade             Float
+  bocal_tipo             String
+  pressao_bocal          Float
+  data_ultima_manutencao DateTime
+  freq_manutencao        String
+  problemas_observados   String
+  data_ultima_avaliacoes DateTime
+  avaliacoes             Avaliacao[]
+}
+
+model Convite {
+  id            String        @id @default(uuid())
+  email         String
+  status        ConviteStatus @default(PENDENTE)
+  propriedadeId String
+  createdAt     DateTime      @default(now())
+  expiresAt     DateTime
+  token         String        @unique
+  propriedade   Propriedade   @relation(fields: [propriedadeId], references: [nome], onDelete: Cascade)
+
+  @@unique([email, propriedadeId])
+  @@index([token])
+}
+
+/**
+ * -------------------------
+ * ENUMS
+ * -------------------------
+ */
+enum UserRole {
+  PROPRIETARIO
+  AVALIADOR
+  ADMIN
+}
+
+enum UnitType {
+  LOCALIZADA
+  PIVO
+}
+
+enum EmissorType {
+  MICROMICROASPERSOR
+  GOTEJAMENTO
+}
+
+enum UnitModel {
+  SETOR_HIDRAULICO
+  PIVO_CENTRAL
+}
+
+enum ConviteStatus {
+  PENDENTE
+  ACEITO
+  EXPIRADO
 }
